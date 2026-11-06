@@ -19,7 +19,8 @@ import StatCard from './components/StatCard'
 import { formatDate, getDueStatus, getEffectiveDueDate, getStatusBadgeClasses } from './lib/dateUtils'
 import { getSupabaseErrorMessage, isSupabaseConfigured, supabase } from './lib/supabase'
 
-const emptyInstrument = {
+const createEmptyInstrument = () => ({
+  id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
   instrument_name: '',
   make: '',
   model: '',
@@ -27,7 +28,7 @@ const emptyInstrument = {
   instrument_range: '',
   next_due_date: '',
   remarks: '',
-}
+})
 
 function SetupGuide() {
   return (
@@ -595,21 +596,43 @@ function CustomersPage() {
 
         <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <div className="md:col-span-2 xl:col-span-3">
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">Customer Name</label>
             <input
               value={form.company_name}
               onChange={(event) => handleChange('company_name', event.target.value)}
               required
               className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-900 outline-none focus:border-cyan-500"
-              placeholder="Company name"
             />
           </div>
-          <input value={form.contact_person} onChange={(event) => handleChange('contact_person', event.target.value)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" placeholder="Contact person" />
-          <input value={form.phone} onChange={(event) => handleChange('phone', event.target.value)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" placeholder="Phone" />
-          <input type="email" value={form.email} onChange={(event) => handleChange('email', event.target.value)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" placeholder="Email" />
-          <input value={form.city} onChange={(event) => handleChange('city', event.target.value)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" placeholder="City" />
-          <input value={form.gst_number} onChange={(event) => handleChange('gst_number', event.target.value)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" placeholder="GST number" />
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">Contact Person</label>
+            <input value={form.contact_person} onChange={(event) => handleChange('contact_person', event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">Phone</label>
+            <input value={form.phone} onChange={(event) => handleChange('phone', event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">Email</label>
+            <input type="email" value={form.email} onChange={(event) => handleChange('email', event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">City</label>
+            <input value={form.city} onChange={(event) => handleChange('city', event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">GST Number</label>
+            <input value={form.gst_number} onChange={(event) => handleChange('gst_number', event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" />
+          </div>
+
           <div className="md:col-span-2 xl:col-span-3">
-            <textarea value={form.address} onChange={(event) => handleChange('address', event.target.value)} rows="3" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" placeholder="Address" />
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">Address</label>
+            <textarea value={form.address} onChange={(event) => handleChange('address', event.target.value)} rows="3" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" />
           </div>
 
           {error ? <div className="md:col-span-2 xl:col-span-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
@@ -693,7 +716,7 @@ function SchedulesPage() {
   const [commonNextDueDate, setCommonNextDueDate] = useState('')
   const [status, setStatus] = useState('PENDING')
   const [remarks, setRemarks] = useState('')
-  const [instrumentRows, setInstrumentRows] = useState([{ ...emptyInstrument }])
+  const [instrumentRows, setInstrumentRows] = useState([createEmptyInstrument()])
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
 
@@ -720,7 +743,7 @@ function SchedulesPage() {
   }
 
   const addInstrumentRow = () => {
-    setInstrumentRows((current) => [...current, { ...emptyInstrument }])
+    setInstrumentRows((current) => [...current, createEmptyInstrument()])
   }
 
   const removeInstrumentRow = (index) => {
@@ -837,7 +860,7 @@ function SchedulesPage() {
       setCommonNextDueDate('')
       setStatus('PENDING')
       setRemarks('')
-      setInstrumentRows([{ ...emptyInstrument }])
+      setInstrumentRows([createEmptyInstrument()])
       setMessage('Schedule and calibration cycle created successfully.')
       await loadData()
     } catch (submissionError) {
@@ -857,33 +880,80 @@ function SchedulesPage() {
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <select value={customerId} onChange={(event) => setCustomerId(event.target.value)} required className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 outline-none focus:border-cyan-500">
-              <option value="">Select customer</option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>
-                  {customer.company_name}
-                </option>
-              ))}
-            </select>
-            <input value={scheduleName} onChange={(event) => setScheduleName(event.target.value)} required className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" placeholder="Schedule name" />
-            <input value={scheduleReference} onChange={(event) => setScheduleReference(event.target.value)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" placeholder="Schedule reference" />
-            <input value={cycleNumber} onChange={(event) => setCycleNumber(event.target.value)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" placeholder="Cycle number" />
-            <input value={jobReference} onChange={(event) => setJobReference(event.target.value)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" placeholder="Job reference" />
-            <input type="date" value={calibrationDate} onChange={(event) => setCalibrationDate(event.target.value)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" />
-            <input type="date" value={completionDate} onChange={(event) => setCompletionDate(event.target.value)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" />
-            <input type="number" min="0" value={totalInstruments} onChange={(event) => setTotalInstruments(event.target.value)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" placeholder="Total instruments" />
-            <select value={dueDateMode} onChange={(event) => setDueDateMode(event.target.value)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 outline-none focus:border-cyan-500">
-              <option value="COMMON">COMMON</option>
-              <option value="INDIVIDUAL">INDIVIDUAL</option>
-              <option value="MIXED">MIXED</option>
-            </select>
-            <input type="date" value={commonNextDueDate} onChange={(event) => setCommonNextDueDate(event.target.value)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" placeholder="Common next due date" />
-            <input value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" placeholder="Status" />
-            <div className="md:col-span-2 xl:col-span-3">
-              <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows="2" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" placeholder="Schedule description" />
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Customer</label>
+              <select value={customerId} onChange={(event) => setCustomerId(event.target.value)} required className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 outline-none focus:border-cyan-500">
+                <option value="">Select customer</option>
+                {customers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.company_name}
+                  </option>
+                ))}
+              </select>
             </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Schedule Name</label>
+              <input value={scheduleName} onChange={(event) => setScheduleName(event.target.value)} required className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Schedule Reference</label>
+              <input value={scheduleReference} onChange={(event) => setScheduleReference(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Cycle Number</label>
+              <input value={cycleNumber} onChange={(event) => setCycleNumber(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Job Reference</label>
+              <input value={jobReference} onChange={(event) => setJobReference(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Calibration Date</label>
+              <input type="date" value={calibrationDate} onChange={(event) => setCalibrationDate(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Completion Date</label>
+              <input type="date" value={completionDate} onChange={(event) => setCompletionDate(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Total Instruments</label>
+              <input type="number" min="0" value={totalInstruments} onChange={(event) => setTotalInstruments(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Due Date Mode</label>
+              <select value={dueDateMode} onChange={(event) => setDueDateMode(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 outline-none focus:border-cyan-500">
+                <option value="COMMON">COMMON</option>
+                <option value="INDIVIDUAL">INDIVIDUAL</option>
+                <option value="MIXED">MIXED</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Common Next Due Date</label>
+              <input type="date" value={commonNextDueDate} onChange={(event) => setCommonNextDueDate(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Status</label>
+              <input value={status} onChange={(event) => setStatus(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" />
+            </div>
+
             <div className="md:col-span-2 xl:col-span-3">
-              <textarea value={remarks} onChange={(event) => setRemarks(event.target.value)} rows="2" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" placeholder="Remarks" />
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Schedule Description</label>
+              <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows="2" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" />
+            </div>
+
+            <div className="md:col-span-2 xl:col-span-3">
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Remarks</label>
+              <textarea value={remarks} onChange={(event) => setRemarks(event.target.value)} rows="2" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" />
             </div>
           </div>
 
@@ -898,7 +968,7 @@ function SchedulesPage() {
 
             <div className="space-y-3">
               {instrumentRows.map((row, index) => (
-                <div key={`${index}-${row.instrument_name || 'new-row'}`} className="grid gap-3 rounded-xl border border-slate-200 bg-white p-3 md:grid-cols-2 xl:grid-cols-6">
+                <div key={row.id || index} className="grid gap-3 rounded-xl border border-slate-200 bg-white p-3 md:grid-cols-2 xl:grid-cols-6">
                   <input value={row.instrument_name} onChange={(event) => updateInstrumentRow(index, 'instrument_name', event.target.value)} className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 outline-none focus:border-cyan-500" placeholder="Instrument name" />
                   <input value={row.make} onChange={(event) => updateInstrumentRow(index, 'make', event.target.value)} className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 outline-none focus:border-cyan-500" placeholder="Make" />
                   <input value={row.model} onChange={(event) => updateInstrumentRow(index, 'model', event.target.value)} className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 outline-none focus:border-cyan-500" placeholder="Model" />
