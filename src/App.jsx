@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from 'react'
-import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import {
   AlertTriangle,
   ArrowRight,
@@ -8,15 +8,17 @@ import {
   CheckCircle2,
   Clock3,
   FileText,
+  Pencil,
   Plus,
   Search,
   ShieldCheck,
+  Trash2,
   TrendingUp,
   UserCheck,
 } from 'lucide-react'
 import Sidebar from './components/Sidebar'
 import StatCard from './components/StatCard'
-import { formatDate, getDueStatus, getEffectiveDueDate, getStatusBadgeClasses } from './lib/dateUtils'
+import { formatDate, getCalibrationDueDate, getDueStatus, getEffectiveDueDate, getStatusBadgeClasses } from './lib/dateUtils'
 import { getSupabaseErrorMessage, isSupabaseConfigured, supabase } from './lib/supabase'
 
 const createEmptyInstrument = () => ({
@@ -490,44 +492,26 @@ function DashboardPage() {
   )
 }
 
-function CustomersPage() {
-  const [customers, setCustomers] = useState([])
-  const [query, setQuery] = useState('')
-  const [form, setForm] = useState({
-    id: '',
-    company_name: '',
-    contact_person: '',
-    phone: '',
-    email: '',
-    address: '',
-    city: '',
-    gst_number: '',
-  })
-  const [loading, setLoading] = useState(true)
+const emptyCustomerForm = {
+  id: '',
+  company_name: '',
+  contact_person: '',
+  phone: '',
+  email: '',
+  address: '',
+  city: '',
+  gst_number: '',
+}
+
+function AddCustomerPage() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const [form, setForm] = useState(() => ({
+    ...emptyCustomerForm,
+    ...(location.state?.customer || {}),
+  }))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-
-  const loadCustomers = async () => {
-    if (!supabase) return
-
-    const { data, error } = await supabase.from('customers').select('*').order('company_name')
-    if (!error) setCustomers(data || [])
-    setLoading(false)
-  }
-
-  useEffect(() => {
-    loadCustomers()
-  }, [])
-
-  const filteredCustomers = customers.filter((customer) => {
-    const searchText = query.toLowerCase()
-    return (
-      !searchText ||
-      customer.company_name?.toLowerCase().includes(searchText) ||
-      customer.phone?.toLowerCase().includes(searchText) ||
-      customer.gst_number?.toLowerCase().includes(searchText)
-    )
-  })
 
   const handleChange = (field, value) => setForm((current) => ({ ...current, [field]: value }))
 
@@ -557,17 +541,7 @@ function CustomersPage() {
         if (error) throw error
       }
 
-      setForm({
-        id: '',
-        company_name: '',
-        contact_person: '',
-        phone: '',
-        email: '',
-        address: '',
-        city: '',
-        gst_number: '',
-      })
-      await loadCustomers()
+      navigate('/customers/directory')
     } catch (submissionError) {
       setError(getSupabaseErrorMessage(submissionError))
     } finally {
@@ -578,20 +552,9 @@ function CustomersPage() {
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/60">
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm uppercase tracking-[0.18em] text-cyan-700">Customers</p>
-            <h1 className="mt-1 text-3xl font-semibold text-slate-900">Customer management</h1>
-          </div>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              className="w-72 rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm text-slate-700 outline-none focus:border-cyan-500"
-              placeholder="Search company, phone or GST"
-            />
-          </div>
+        <div className="mb-5">
+          <p className="text-sm uppercase tracking-[0.18em] text-cyan-700">Customers</p>
+          <h1 className="mt-1 text-3xl font-semibold text-slate-900">{form.id ? 'Edit customer' : 'Add customer'}</h1>
         </div>
 
         <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -642,19 +605,95 @@ function CustomersPage() {
               {saving ? 'Saving...' : form.id ? 'Update customer' : 'Add customer'}
             </button>
             {form.id ? (
-              <button type="button" onClick={() => setForm({ id: '', company_name: '', contact_person: '', phone: '', email: '', address: '', city: '', gst_number: '' })} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
-                Clear form
+              <button type="button" onClick={() => navigate('/customers/directory')} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                Cancel
               </button>
             ) : null}
           </div>
         </form>
       </div>
+    </div>
+  )
+}
+
+function CustomerDirectoryPage() {
+  const navigate = useNavigate()
+  const [customers, setCustomers] = useState([])
+  const [query, setQuery] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [deletingCustomerId, setDeletingCustomerId] = useState('')
+
+  useEffect(() => {
+    const loadCustomers = async () => {
+      if (!supabase) return
+      const { data, error: loadError } = await supabase.from('customers').select('*').order('company_name')
+      if (loadError) setError(getSupabaseErrorMessage(loadError))
+      else setCustomers(data || [])
+      setLoading(false)
+    }
+
+    loadCustomers()
+  }, [])
+
+  const filteredCustomers = customers.filter((customer) => {
+    const searchText = query.toLowerCase()
+    return (
+      !searchText ||
+      customer.company_name?.toLowerCase().includes(searchText) ||
+      customer.phone?.toLowerCase().includes(searchText) ||
+      customer.gst_number?.toLowerCase().includes(searchText)
+    )
+  })
+
+  const handleDeleteCustomer = async (customer) => {
+    const confirmed = window.confirm(
+      `Delete ${customer.company_name}? This will also permanently delete its calibration schedules and related cycle records.`,
+    )
+    if (!confirmed || !supabase) return
+
+    try {
+      setDeletingCustomerId(customer.id)
+      setError('')
+      const { error: deleteError } = await supabase.from('customers').delete().eq('id', customer.id)
+      if (deleteError) throw deleteError
+      setCustomers((current) => current.filter((entry) => entry.id !== customer.id))
+    } catch (deleteError) {
+      setError(getSupabaseErrorMessage(deleteError))
+    } finally {
+      setDeletingCustomerId('')
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/60">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm uppercase tracking-[0.18em] text-cyan-700">Customers</p>
+            <h1 className="mt-1 text-3xl font-semibold text-slate-900">Customer directory</h1>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                className="w-72 max-w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm text-slate-700 outline-none focus:border-cyan-500"
+                placeholder="Search company, phone or GST"
+                aria-label="Search customers"
+              />
+            </div>
+            <button type="button" onClick={() => navigate('/customers/add')} className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-cyan-500">
+              <Plus className="h-4 w-4" />
+              Add customer
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/60">
-        <div className="border-b border-slate-200 px-4 py-3">
-          <h2 className="text-lg font-semibold text-slate-900">Customer directory</h2>
-        </div>
-
+        {error ? <div className="border-b border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
         {loading ? (
           <div className="p-6 text-center text-sm text-slate-500">Loading customers...</div>
         ) : (
@@ -681,16 +720,31 @@ function CustomersPage() {
                     <td className="px-4 py-3">{customer.gst_number || '—'}</td>
                     <td className="px-4 py-3">{customer.city || '—'}</td>
                     <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => setForm({ ...customer })}
+                        onClick={() => navigate('/customers/add', { state: { customer } })}
                         className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 hover:border-slate-300"
                       >
                         Edit
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCustomer(customer)}
+                        disabled={deletingCustomerId === customer.id}
+                        aria-label={`Delete ${customer.company_name}`}
+                        title="Delete customer"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
+                {!filteredCustomers.length ? (
+                  <tr><td colSpan="7" className="px-4 py-8 text-center text-slate-500">No customers found.</td></tr>
+                ) : null}
               </tbody>
             </table>
           </div>
@@ -700,9 +754,9 @@ function CustomersPage() {
   )
 }
 
-function SchedulesPage() {
+function AddSchedulePage() {
+  const navigate = useNavigate()
   const [customers, setCustomers] = useState([])
-  const [schedules, setSchedules] = useState([])
   const [scheduleName, setScheduleName] = useState('')
   const [scheduleReference, setScheduleReference] = useState('')
   const [description, setDescription] = useState('')
@@ -710,10 +764,9 @@ function SchedulesPage() {
   const [cycleNumber, setCycleNumber] = useState('1')
   const [jobReference, setJobReference] = useState('')
   const [calibrationDate, setCalibrationDate] = useState('')
-  const [completionDate, setCompletionDate] = useState('')
+  const [commonNextDueDate, setCommonNextDueDate] = useState('')
   const [totalInstruments, setTotalInstruments] = useState('0')
   const [dueDateMode, setDueDateMode] = useState('COMMON')
-  const [commonNextDueDate, setCommonNextDueDate] = useState('')
   const [status, setStatus] = useState('PENDING')
   const [remarks, setRemarks] = useState('')
   const [instrumentRows, setInstrumentRows] = useState([createEmptyInstrument()])
@@ -723,13 +776,8 @@ function SchedulesPage() {
   const loadData = async () => {
     if (!supabase) return
 
-    const [customerResult, scheduleResult] = await Promise.all([
-      supabase.from('customers').select('*').order('company_name'),
-      supabase.from('calibration_schedules').select('*').order('created_at', { ascending: false }),
-    ])
-
+    const customerResult = await supabase.from('customers').select('*').order('company_name')
     setCustomers(customerResult.data || [])
-    setSchedules(scheduleResult.data || [])
   }
 
   useEffect(() => {
@@ -818,7 +866,6 @@ function SchedulesPage() {
           cycle_number: Number(cycleNumber || 1),
           job_reference: jobReference,
           calibration_date: calibrationDate || null,
-          completion_date: completionDate || null,
           total_instruments: Number(totalInstruments || instrumentRows.length || 0),
           due_date_mode: dueDateMode,
           common_next_due_date: commonNextDueDate || null,
@@ -854,15 +901,13 @@ function SchedulesPage() {
       setCycleNumber('1')
       setJobReference('')
       setCalibrationDate('')
-      setCompletionDate('')
+      setCommonNextDueDate('')
       setTotalInstruments('0')
       setDueDateMode('COMMON')
-      setCommonNextDueDate('')
       setStatus('PENDING')
       setRemarks('')
       setInstrumentRows([createEmptyInstrument()])
-      setMessage('Schedule and calibration cycle created successfully.')
-      await loadData()
+      navigate('/calibration-schedules/directory')
     } catch (submissionError) {
       setMessage(getSupabaseErrorMessage(submissionError))
     } finally {
@@ -875,7 +920,7 @@ function SchedulesPage() {
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/60">
         <div className="mb-5">
           <p className="text-sm uppercase tracking-[0.18em] text-cyan-700">Schedules</p>
-          <h1 className="mt-1 text-3xl font-semibold text-slate-900">Create calibration schedule</h1>
+          <h1 className="mt-1 text-3xl font-semibold text-slate-900">Add calibration schedule</h1>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -914,12 +959,16 @@ function SchedulesPage() {
 
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">Calibration Date</label>
-              <input type="date" value={calibrationDate} onChange={(event) => setCalibrationDate(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" />
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">Completion Date</label>
-              <input type="date" value={completionDate} onChange={(event) => setCompletionDate(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" />
+              <input
+                type="date"
+                value={calibrationDate}
+                onChange={(event) => {
+                  const value = event.target.value
+                  setCalibrationDate(value)
+                  setCommonNextDueDate(getCalibrationDueDate(value))
+                }}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500"
+              />
             </div>
 
             <div>
@@ -937,8 +986,8 @@ function SchedulesPage() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">Common Next Due Date</label>
-              <input type="date" value={commonNextDueDate} onChange={(event) => setCommonNextDueDate(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500" />
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Calibration Due Date</label>
+              <input type="date" value={commonNextDueDate} onChange={(event) => setCommonNextDueDate(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 outline-none focus:border-cyan-500" />
             </div>
 
             <div>
@@ -998,11 +1047,106 @@ function SchedulesPage() {
           </button>
         </form>
       </div>
+    </div>
+  )
+}
+
+function ScheduleDirectoryPage() {
+  const [customers, setCustomers] = useState([])
+  const [schedules, setSchedules] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [editingSchedule, setEditingSchedule] = useState(null)
+  const [editForm, setEditForm] = useState({ customer_id: '', schedule_name: '', schedule_reference: '', description: '' })
+  const [saving, setSaving] = useState(false)
+  const [deletingScheduleId, setDeletingScheduleId] = useState('')
+  const [editError, setEditError] = useState('')
+
+  useEffect(() => {
+    const loadSchedules = async () => {
+      if (!supabase) return
+      const [customerResult, scheduleResult] = await Promise.all([
+        supabase.from('customers').select('*').order('company_name'),
+        supabase.from('calibration_schedules').select('*').order('created_at', { ascending: false }),
+      ])
+
+      if (customerResult.error) setError(getSupabaseErrorMessage(customerResult.error))
+      else if (scheduleResult.error) setError(getSupabaseErrorMessage(scheduleResult.error))
+      setCustomers(customerResult.data || [])
+      setSchedules(scheduleResult.data || [])
+      setLoading(false)
+    }
+
+    loadSchedules()
+  }, [])
+
+  const startEditing = (schedule) => {
+    setEditingSchedule(schedule)
+    setEditForm({
+      customer_id: schedule.customer_id || '',
+      schedule_name: schedule.schedule_name || '',
+      schedule_reference: schedule.schedule_reference || '',
+      description: schedule.description || '',
+    })
+    setError('')
+    setEditError('')
+  }
+
+  const handleUpdateSchedule = async (event) => {
+    event.preventDefault()
+    if (!supabase || !editingSchedule) return
+
+    try {
+      setSaving(true)
+      setEditError('')
+      const { error: updateError } = await supabase
+        .from('calibration_schedules')
+        .update(editForm)
+        .eq('id', editingSchedule.id)
+      if (updateError) throw updateError
+
+      setSchedules((current) => current.map((schedule) =>
+        schedule.id === editingSchedule.id ? { ...schedule, ...editForm } : schedule,
+      ))
+      setEditingSchedule(null)
+    } catch (updateError) {
+      setEditError(getSupabaseErrorMessage(updateError))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteSchedule = async (schedule) => {
+    const confirmed = window.confirm(
+      `Delete ${schedule.schedule_name}? This will also permanently delete its calibration cycles and instrument records.`,
+    )
+    if (!confirmed || !supabase) return
+
+    try {
+      setDeletingScheduleId(schedule.id)
+      setError('')
+      const { error: deleteError } = await supabase.from('calibration_schedules').delete().eq('id', schedule.id)
+      if (deleteError) throw deleteError
+      setSchedules((current) => current.filter((entry) => entry.id !== schedule.id))
+    } catch (deleteError) {
+      setError(getSupabaseErrorMessage(deleteError))
+    } finally {
+      setDeletingScheduleId('')
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/60">
+        <p className="text-sm uppercase tracking-[0.18em] text-cyan-700">Schedules</p>
+        <h1 className="mt-1 text-3xl font-semibold text-slate-900">Schedule Directory</h1>
+      </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/60">
-        <div className="border-b border-slate-200 px-4 py-3">
-          <h2 className="text-lg font-semibold text-slate-900">Schedule list</h2>
-        </div>
+        {error ? <div className="border-b border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
+        {loading ? (
+          <div className="p-6 text-center text-sm text-slate-500">Loading schedules...</div>
+        ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm text-slate-700">
             <thead className="bg-slate-50">
@@ -1011,6 +1155,7 @@ function SchedulesPage() {
                 <th className="px-4 py-3 font-medium">Reference</th>
                 <th className="px-4 py-3 font-medium">Customer</th>
                 <th className="px-4 py-3 font-medium">Created</th>
+                <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -1020,12 +1165,118 @@ function SchedulesPage() {
                   <td className="px-4 py-3">{schedule.schedule_reference || '—'}</td>
                   <td className="px-4 py-3">{customers.find((customer) => customer.id === schedule.customer_id)?.company_name || '—'}</td>
                   <td className="px-4 py-3">{formatDate(schedule.created_at)}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => startEditing(schedule)}
+                        aria-label={`Edit ${schedule.schedule_name}`}
+                        title="Edit schedule"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 transition hover:border-slate-300"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSchedule(schedule)}
+                        disabled={deletingScheduleId === schedule.id}
+                        aria-label={`Delete ${schedule.schedule_name}`}
+                        title="Delete schedule"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
+              {!schedules.length ? (
+                <tr><td colSpan="5" className="px-4 py-8 text-center text-slate-500">No schedules found.</td></tr>
+              ) : null}
             </tbody>
           </table>
         </div>
+        )}
       </div>
+
+      {editingSchedule ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4" role="presentation">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-schedule-title"
+            className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-xl"
+          >
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm uppercase tracking-[0.18em] text-cyan-700">Schedules</p>
+                <h2 id="edit-schedule-title" className="mt-1 text-xl font-semibold text-slate-900">Edit schedule</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingSchedule(null)}
+                aria-label="Close edit schedule dialog"
+                className="rounded-lg px-2 py-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+              >
+                Close
+              </button>
+            </div>
+            <form onSubmit={handleUpdateSchedule} className="space-y-4">
+              <div>
+                <label htmlFor="edit-schedule-customer" className="mb-1.5 block text-sm font-medium text-slate-700">Customer</label>
+                <select
+                  id="edit-schedule-customer"
+                  value={editForm.customer_id}
+                  onChange={(event) => setEditForm((current) => ({ ...current, customer_id: event.target.value }))}
+                  required
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 outline-none focus:border-cyan-500"
+                >
+                  <option value="">Select customer</option>
+                  {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.company_name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="edit-schedule-name" className="mb-1.5 block text-sm font-medium text-slate-700">Schedule Name</label>
+                <input
+                  id="edit-schedule-name"
+                  value={editForm.schedule_name}
+                  onChange={(event) => setEditForm((current) => ({ ...current, schedule_name: event.target.value }))}
+                  required
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500"
+                />
+              </div>
+              <div>
+                <label htmlFor="edit-schedule-reference" className="mb-1.5 block text-sm font-medium text-slate-700">Schedule Reference</label>
+                <input
+                  id="edit-schedule-reference"
+                  value={editForm.schedule_reference}
+                  onChange={(event) => setEditForm((current) => ({ ...current, schedule_reference: event.target.value }))}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500"
+                />
+              </div>
+              <div>
+                <label htmlFor="edit-schedule-description" className="mb-1.5 block text-sm font-medium text-slate-700">Description</label>
+                <textarea
+                  id="edit-schedule-description"
+                  value={editForm.description}
+                  onChange={(event) => setEditForm((current) => ({ ...current, description: event.target.value }))}
+                  rows="3"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 outline-none focus:border-cyan-500"
+                />
+              </div>
+              {editError ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{editError}</div> : null}
+              <div className="flex justify-end gap-3">
+                <button type="button" onClick={() => setEditingSchedule(null)} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                  Cancel
+                </button>
+                <button type="submit" disabled={saving} className="rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-cyan-500 disabled:opacity-60">
+                  {saving ? 'Saving...' : 'Save changes'}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -1335,8 +1586,12 @@ function App() {
         ) : (
           <Route element={<AppShell onSignOut={handleSignOut} />}>
             <Route path="/" element={<DashboardPage />} />
-            <Route path="/customers" element={<CustomersPage />} />
-            <Route path="/calibration-schedules" element={<SchedulesPage />} />
+            <Route path="/customers" element={<Navigate to="/customers/directory" replace />} />
+            <Route path="/customers/add" element={<AddCustomerPage />} />
+            <Route path="/customers/directory" element={<CustomerDirectoryPage />} />
+            <Route path="/calibration-schedules" element={<Navigate to="/calibration-schedules/directory" replace />} />
+            <Route path="/calibration-schedules/add" element={<AddSchedulePage />} />
+            <Route path="/calibration-schedules/directory" element={<ScheduleDirectoryPage />} />
             <Route path="/due-date-alerts" element={<DueDateAlertsPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
